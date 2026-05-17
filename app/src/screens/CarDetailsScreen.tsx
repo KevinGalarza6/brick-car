@@ -2,13 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/colors';
-
-// Importamos o JSON apenas como alternativa de segurança
-import initialCars from '../utils/cars.json';
-
-const STORAGE_KEY = '@carros_na_serra_data';
+import { api } from '../services/api';
 
 export const CarDetailsScreen = ({ route, navigation }: any) => {
     const { carId } = route.params || { carId: '1' };
@@ -18,19 +13,10 @@ export const CarDetailsScreen = ({ route, navigation }: any) => {
     useEffect(() => {
         const loadCarDetails = async () => {
             try {
-                const storedData = await AsyncStorage.getItem(STORAGE_KEY);
-                let carsList = initialCars;
-
-                // Se existirem dados na memória, usamos esses (que incluem os novos cadastros)
-                if (storedData) {
-                    carsList = JSON.parse(storedData);
-                }
-
-                // Procura o carro pelo ID garantindo que ambos são do tipo string
-                const foundCar = carsList.find((c: any) => String(c.id) === String(carId));
+                const foundCar = await api.getCarById(carId);
                 setCar(foundCar);
             } catch (error) {
-                console.error("Erro ao carregar detalhes do carro", error);
+                console.error("Erro ao carregar detalhes do carro pela API", error);
             } finally {
                 setLoading(false);
             }
@@ -39,7 +25,6 @@ export const CarDetailsScreen = ({ route, navigation }: any) => {
         loadCarDetails();
     }, [carId]);
 
-    // Enquanto procura na memória, mostra o ícone de carregamento
     if (loading) {
         return (
             <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
@@ -48,7 +33,6 @@ export const CarDetailsScreen = ({ route, navigation }: any) => {
         );
     }
 
-    // Se mesmo assim não encontrar, exibe o ecrã de erro
     if (!car) {
         return (
             <SafeAreaView style={styles.container}>
@@ -82,7 +66,6 @@ export const CarDetailsScreen = ({ route, navigation }: any) => {
 
                 <View style={styles.detailsContainer}>
                     <View style={styles.titleRow}>
-                        {/* Garantimos que a marca e modelo aparecem completos se for adicionado no form */}
                         <Text style={styles.carName}>{car.brand} {car.model}</Text>
                         <Text style={styles.carPrice}>{car.price}</Text>
                     </View>
@@ -115,7 +98,6 @@ export const CarDetailsScreen = ({ route, navigation }: any) => {
     );
 };
 
-// Sub-componente para organizar os dados
 const SpecItem = ({ label, value }: { label: string, value: string }) => (
     <View style={styles.specItem}>
         <Text style={styles.specLabel}>{label}</Text>

@@ -2,13 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, Image, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { theme } from '../theme/colors';
-
-// Carrega os dados iniciais do JSON caso o AsyncStorage esteja vazio
-import initialCars from '../utils/cars.json';
-
-const STORAGE_KEY = '@carros_na_serra_data';
+import { api } from '../services/api';
 
 export const ManageCarsScreen = ({ navigation }: any) => {
     const [cars, setCars] = useState<any[]>([]);
@@ -35,30 +30,16 @@ export const ManageCarsScreen = ({ navigation }: any) => {
 
     const loadCars = async () => {
         try {
-            const storedData = await AsyncStorage.getItem(STORAGE_KEY);
-            if (storedData) {
-                setCars(JSON.parse(storedData)); // Usa dados salvos no celular
-            } else {
-                setCars(initialCars); // Se for a primeira vez, usa o JSON
-            }
+            const data = await api.getCars();
+            setCars(data);
         } catch (e) {
-            console.error("Erro ao carregar dados", e);
-        }
-    };
-
-    // 2. Função auxiliar para salvar no estado E no AsyncStorage
-    const saveCarsToStorage = async (newCarsList: any[]) => {
-        try {
-            setCars(newCarsList);
-            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newCarsList));
-        } catch (e) {
-            Alert.alert('Erro', 'Não foi possível salvar os dados no dispositivo.');
+            console.error("Erro ao buscar dados da API", e);
+            Alert.alert('Erro', 'Não foi possível conectar ao servidor.');
         }
     };
 
     // CREATE & UPDATE
-    const handleSave = () => {
-        // Validação básica
+    const handleSave = async () => {
         if (!brand || !model || !price || !city) {
             Alert.alert('Erro', 'Preencha pelo menos Marca, Modelo, Preço e Cidade.');
             return;
@@ -69,20 +50,23 @@ export const ManageCarsScreen = ({ navigation }: any) => {
             imageUrl: imageUrl || 'https://via.placeholder.com/800x600.png?text=Sem+Foto'
         };
 
-        if (editingId) {
-            const updatedCars = cars.map(car => car.id === editingId ? { ...car, ...carData } : car);
-            saveCarsToStorage(updatedCars);
-            Alert.alert('Sucesso', 'Anúncio atualizado com sucesso!');
-        } else {
-            const newCar = { id: Date.now().toString(), ...carData };
-            saveCarsToStorage([newCar, ...cars]);
-            Alert.alert('Sucesso', 'Novo veículo anunciado!');
+        try {
+            if (editingId) {
+                await api.updateCar(editingId, carData);
+                Alert.alert('Sucesso', 'Anúncio atualizado com sucesso!');
+            } else {
+                await api.createCar(carData);
+                Alert.alert('Sucesso', 'Novo veículo anunciado!');
+            }
+            resetForm();
+            loadCars(); // Recarrega a lista do banco
+        } catch (error) {
+            Alert.alert('Erro', 'Ocorreu um erro ao salvar no banco de dados.');
         }
-        resetForm();
     };
 
     const handleEdit = (car: any) => {
-        setEditingId(car.id);
+        setEditingId(String(car.id));
         setBrand(car.brand);
         setModel(car.model);
         setYear(car.year);
@@ -103,9 +87,13 @@ export const ManageCarsScreen = ({ navigation }: any) => {
             {
                 text: 'Excluir',
                 style: 'destructive',
-                onPress: () => {
-                    const filteredCars = cars.filter(car => car.id !== id);
-                    saveCarsToStorage(filteredCars);
+                onPress: async () => {
+                    try {
+                        await api.deleteCar(id);
+                        loadCars(); // Recarrega a lista
+                    } catch (error) {
+                        Alert.alert('Erro', 'Não foi possível excluir o veículo.');
+                    }
                 }
             }
         ]);
@@ -117,12 +105,6 @@ export const ManageCarsScreen = ({ navigation }: any) => {
         setAcceptsTrade(''); setPrice(''); setContactPhone(''); setImageUrl('');
     };
 
-    // Botão para resetar o banco local para o padrão do JSON (Útil para testes)
-    const resetDatabase = async () => {
-        await saveCarsToStorage(initialCars);
-        Alert.alert('Resetado', 'O banco de dados voltou ao estado inicial do JSON.');
-    };
-
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
@@ -130,9 +112,8 @@ export const ManageCarsScreen = ({ navigation }: any) => {
                     <Ionicons name="arrow-back" size={24} color={theme.colors.background} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Painel do Vendedor</Text>
-                <TouchableOpacity onPress={resetDatabase}>
-                    <Ionicons name="refresh" size={24} color={theme.colors.background} />
-                </TouchableOpacity>
+                <View style={{ width: 24 }} />
+                {/* View vazia apenas para manter o título centralizado */}
             </View>
 
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -140,7 +121,6 @@ export const ManageCarsScreen = ({ navigation }: any) => {
                     data={cars}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
-                    // Usamos o ListHeaderComponent para o formulário rolar junto com a lista no Android
                     ListHeaderComponent={(
                         <View style={styles.formContainer}>
                             <Text style={styles.formTitle}>{editingId ? 'Editar Anúncio' : 'Novo Anúncio'}</Text>
@@ -171,7 +151,7 @@ export const ManageCarsScreen = ({ navigation }: any) => {
                             <TextInput style={styles.input} placeholder="URL da Imagem (Link da foto)" value={imageUrl} onChangeText={setImageUrl} />
 
                             <View style={styles.actionRow}>
-                                {editingId && (
+                                {!!editingId && (
                                     <TouchableOpacity style={styles.btnCancel} onPress={resetForm}>
                                         <Text style={styles.btnCancelText}>Cancelar</Text>
                                     </TouchableOpacity>

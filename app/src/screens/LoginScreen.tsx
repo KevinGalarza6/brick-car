@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons'; // Já vem no Expo
+import { Ionicons } from '@expo/vector-icons';
 
 export const LoginScreen = ({ navigation }: any) => {
     const [email, setEmail] = useState('');
@@ -12,7 +12,6 @@ export const LoginScreen = ({ navigation }: any) => {
         <SafeAreaView style={styles.container}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.content}>
 
-                {/* Logo Placeholder */}
                 <View style={styles.logoContainer}>
                     <Ionicons name="car-sport-outline" size={80} color={theme.colors.primary} />
                     <Text style={styles.appName}>CarrosNaSerra</Text>

@@ -1,19 +1,16 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { VehicleCard } from '../components/VehicleCard';
 import { theme } from '../theme/colors';
-
-import initialCars from '../utils/cars.json';
-
-const STORAGE_KEY = '@carros_na_serra_data';
+import { api } from '../services/api';
 
 export const HomeScreen = ({ navigation }: any) => {
     const [cars, setCars] = useState<any[]>([]);
-    const [searchText, setSearchText] = useState(''); // Novo estado para a busca
+    const [searchText, setSearchText] = useState('');
+    const [loading, setLoading] = useState(true); // NOVO ESTADO DE CARREGAMENTO
 
     useFocusEffect(
         useCallback(() => {
@@ -22,19 +19,17 @@ export const HomeScreen = ({ navigation }: any) => {
     );
 
     const loadCars = async () => {
+        setLoading(true);
         try {
-            const storedData = await AsyncStorage.getItem(STORAGE_KEY);
-            if (storedData) {
-                setCars(JSON.parse(storedData));
-            } else {
-                setCars(initialCars);
-            }
+            const data = await api.getCars();
+            setCars(data);
         } catch (e) {
-            console.error("Erro ao carregar dados na Home", e);
+            console.error("Erro ao carregar dados na Home da API", e);
+        } finally {
+            setLoading(false);
         }
     };
 
-    // Lógica de Filtro: Filtra a lista principal com base no texto digitado
     const filteredCars = cars.filter(car => {
         const search = searchText.toLowerCase();
         return (
@@ -43,10 +38,18 @@ export const HomeScreen = ({ navigation }: any) => {
         );
     });
 
-    // Listas dinâmicas baseadas nos resultados filtrados
     const recommendedCars = filteredCars.slice(0, 3);
     const recentCars = [...filteredCars].reverse();
     const bestSellers = filteredCars.slice(Math.max(0, filteredCars.length - 3));
+
+    if (loading) {
+        return (
+            <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <Text style={{ marginTop: 12, color: theme.colors.textSecondary }}>Buscando veículos no servidor...</Text>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -67,7 +70,7 @@ export const HomeScreen = ({ navigation }: any) => {
                     placeholder="Busque aqui..."
                     placeholderTextColor={theme.colors.textSecondary}
                     value={searchText}
-                    onChangeText={setSearchText} // Atualiza o estado conforme digita
+                    onChangeText={setSearchText}
                 />
                 {searchText !== '' && (
                     <TouchableOpacity
